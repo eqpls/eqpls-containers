@@ -48,8 +48,10 @@ def deploy(wait=False):
     except: pass
     try: os.mkdir(f'{path}/data.d')
     except: pass
+    try: os.mkdir(f'{path}/back.d')
+    except: pass
 
-    with open(f'{path}/conf.d/{module}.conf', 'w') as fd:
+    with open(f'{path}/conf.d/postgresql.conf', 'w') as fd:
         fd.write(f"""listen_addresses = '*'
 timezone = 'Etc/UTC'
 log_timezone = 'Etc/UTC'
@@ -77,12 +79,14 @@ wal_level = 'logical'
         volumes=[
             f'{path}/init.d:/init.d',
             f'{path}/conf.d:/conf.d',
-            f'{path}/data.d:/data.d',
+            f'{path}/data.d:/var/lib/postgresql/data',
+            f'{path}/back.d:/back.d',
         ],
         healthcheck={
             'test': 'pg_isready --username postgres || exit 1',
-            'interval': 60 * 1000000000,
-            'timeout': 2 * 1000000000
+            'interval': 5 * 1000000000,
+            'timeout': 2 * 1000000000,
+            'retries': 12
         }
     )
 
@@ -115,7 +119,7 @@ def restart():
 # stop
 def stop():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): container.restart()
+        for container in client.containers.list(all=True, filters={'name': module}): container.stop()
     except: pass
 
 

@@ -48,7 +48,7 @@ def deploy(wait=False):
     except: pass
     try: os.mkdir(f'{path}/data.d')
     except: pass
-    
+
     container = client.containers.run(
         f'{tenant}/{module}:{version}',
         detach=True,
@@ -66,10 +66,11 @@ def deploy(wait=False):
         healthcheck={
             'test': 'redis-cli --raw incr ping || exit 1',
             'interval': 5 * 1000000000,
-            'timeout': 2 * 1000000000
+            'timeout': 2 * 1000000000,
+            'retires': 12
         }
     )
-    
+
     while wait:
         time.sleep(1)
         container.reload()
@@ -99,7 +100,7 @@ def restart():
 # stop
 def stop():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): container.restart()
+        for container in client.containers.list(all=True, filters={'name': module}): container.stop()
     except: pass
 
 
