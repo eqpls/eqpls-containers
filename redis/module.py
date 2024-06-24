@@ -20,12 +20,12 @@ import configparser
 #===============================================================================
 # load configs
 path = os.path.dirname(os.path.realpath(__file__))
-module = os.path.basename(os.path.normpath(path))
 config = configparser.ConfigParser()
 config.read(f'{path}/module.conf', encoding='utf-8')
 client = docker.from_env()
 
 # default configs
+title = config['default']['title']
 tenant = config['default']['tenant']
 version = config['default']['version']
 hostname = config['default']['hostname']
@@ -39,20 +39,27 @@ system_secret_key = config['default']['system_secret_key']
 # Container Control
 #===============================================================================
 # build
-def build(): client.images.build(nocache=True, rm=True, path=f'{path}', tag=f'{tenant}/{module}:{version}')
+def build(): client.images.build(nocache=True, rm=True, path=f'{path}', tag=f'{tenant}/{title}:{version}')
 
 
 # deploy
-def deploy(wait=False):
+def deploy(nowait=False):
     try: os.mkdir(f'{path}/conf.d')
     except: pass
     try: os.mkdir(f'{path}/data.d')
     except: pass
+    try: os.mkdir(f'{path}/back.d')
+    except: pass
+    
+    with open(f'{path}/conf.d/{title}.conf', 'w') as fd:
+        fd.write('''
+# Configuration Here
+        ''')
 
     container = client.containers.run(
-        f'{tenant}/{module}:{version}',
+        f'{tenant}/{title}:{version}',
         detach=True,
-        name=module,
+        name=title,
         hostname=hostname,
         network=tenant,
         mem_limit='1g',
@@ -71,7 +78,7 @@ def deploy(wait=False):
         }
     )
 
-    while wait:
+    while not nowait:
         time.sleep(1)
         container.reload()
         print('check desire status of container')
@@ -86,27 +93,27 @@ def deploy(wait=False):
 # start
 def start():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): container.start()
+        for container in client.containers.list(all=True, filters={'name': title}): container.start()
     except: pass
 
 
 # restart
 def restart():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): container.restart()
+        for container in client.containers.list(all=True, filters={'name': title}): container.restart()
     except: pass
 
 
 # stop
 def stop():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): container.stop()
+        for container in client.containers.list(all=True, filters={'name': title}): container.stop()
     except: pass
 
 
 # clean
 def clean():
-    for container in client.containers.list(all=True, filters={'name': module}): container.remove(v=True, force=True)
+    for container in client.containers.list(all=True, filters={'name': title}): container.remove(v=True, force=True)
     shutil.rmtree(f'{path}/conf.d', ignore_errors=True)
     shutil.rmtree(f'{path}/data.d', ignore_errors=True)
 
@@ -114,9 +121,9 @@ def clean():
 # purge
 def purge():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): container.remove(v=True, force=True)
+        for container in client.containers.list(all=True, filters={'name': title}): container.remove(v=True, force=True)
     except: pass
-    try: client.images.remove(image=f'{tenant}/{module}:{version}', force=True)
+    try: client.images.remove(image=f'{tenant}/{title}:{version}', force=True)
     except: pass
     shutil.rmtree(f'{path}/conf.d', ignore_errors=True)
     shutil.rmtree(f'{path}/data.d', ignore_errors=True)
@@ -125,14 +132,14 @@ def purge():
 # monitor
 def monitor():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): print(json.dumps(container.stats(stream=False), indent=2))
+        for container in client.containers.list(all=True, filters={'name': title}): print(json.dumps(container.stats(stream=False), indent=2))
     except: pass
 
 
 # logs
 def logs():
     try:
-        for container in client.containers.list(all=True, filters={'name': module}): print(container.logs(tail=100).decode('utf-8'))
+        for container in client.containers.list(all=True, filters={'name': title}): print(container.logs(tail=100).decode('utf-8'))
     except: pass
 
 
@@ -147,7 +154,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--purge', action='store_true', help='purge container')
     parser.add_argument('-l', '--logs', action='store_true', help='show container logs')
     parser.add_argument('-m', '--monitor', action='store_true', help='show container stats')
-    parser.add_argument('-w', '--wait', action='store_true', help='wait desire status of container')
+    parser.add_argument('-w', '--nowait', action='store_true', help='wait desire status of container')
 
     args = parser.parse_args()
     if not (args.logs or args.monitor):
@@ -162,7 +169,7 @@ if __name__ == '__main__':
         if argCount > 1 or argCount == 0: parser.print_help()
 
     if args.build: build()
-    elif args.deploy: deploy(args.wait)
+    elif args.deploy: deploy(args.nowait)
     elif args.start: start()
     elif args.restart: restart()
     elif args.stop: stop()
