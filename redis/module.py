@@ -21,7 +21,7 @@ import configparser
 # load configs
 path = os.path.dirname(os.path.realpath(__file__))
 config = configparser.ConfigParser()
-config.read(f'{path}/module.conf', encoding='utf-8')
+config.read(f'{path}/module.ini', encoding='utf-8')
 client = docker.from_env()
 
 # default configs
