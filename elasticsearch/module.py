@@ -21,7 +21,7 @@ import configparser
 # load configs
 path = os.path.dirname(os.path.realpath(__file__))
 config = configparser.ConfigParser()
-config.read(f'{path}/module.conf', encoding='utf-8')
+config.read(f'{path}/module.ini', encoding='utf-8')
 client = docker.from_env()
 
 # default configs
@@ -33,6 +33,10 @@ host = config['default']['host']
 port = config['default']['port']
 system_access_key = config['default']['system_access_key']
 system_secret_key = config['default']['system_secret_key']
+
+health_check_interval = int(config['default']['health_check_interval'])
+health_check_timeout = int(config['default']['health_check_timeout'])
+health_check_retries = int(config['default']['health_check_retries'])
 
 
 #===============================================================================
@@ -50,7 +54,7 @@ def deploy(nowait=False):
     except: pass
     try: os.mkdir(f'{path}/back.d')
     except: pass
-    
+
     with open(f'{path}/conf.d/{title}.conf', 'w') as fd:
         fd.write('''
 # Configuration Here
@@ -70,16 +74,15 @@ def deploy(nowait=False):
             f'discovery.type=single-node'
         ],
         volumes=[
-            f'{path}/init.d:/init.d',
             f'{path}/conf.d:/conf.d',
             f'{path}/data.d:/usr/share/elasticsearch/data',
             f'{path}/back.d:/back.d'
         ],
         healthcheck={
             'test': 'curl -k https://localhost:9200 || exit 1',
-            'interval': 5 * 1000000000,
-            'timeout': 2 * 1000000000,
-            'retries': 12
+            'interval': health_check_interval * 1000000000,
+            'timeout': health_check_timeout * 1000000000,
+            'retries': health_check_retries
         }
     )
 

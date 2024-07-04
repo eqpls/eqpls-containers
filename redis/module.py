@@ -34,6 +34,10 @@ port = config['default']['port']
 system_access_key = config['default']['system_access_key']
 system_secret_key = config['default']['system_secret_key']
 
+health_check_interval = int(config['default']['health_check_interval'])
+health_check_timeout = int(config['default']['health_check_timeout'])
+health_check_retries = int(config['default']['health_check_retries'])
+
 
 #===============================================================================
 # Container Control
@@ -50,7 +54,7 @@ def deploy(nowait=False):
     except: pass
     try: os.mkdir(f'{path}/back.d')
     except: pass
-    
+
     with open(f'{path}/conf.d/{title}.conf', 'w') as fd:
         fd.write('''
 # Configuration Here
@@ -72,9 +76,9 @@ def deploy(nowait=False):
         ],
         healthcheck={
             'test': 'redis-cli --raw incr ping || exit 1',
-            'interval': 5 * 1000000000,
-            'timeout': 2 * 1000000000,
-            'retires': 12
+            'interval': health_check_interval * 1000000000,
+            'timeout': health_check_timeout * 1000000000,
+            'retries': health_check_retries
         }
     )
 
