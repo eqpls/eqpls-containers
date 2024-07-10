@@ -13,8 +13,15 @@ EOSQL
 # Create Databases
 psql -v ON_ERROR_STOP=1 --username postgres <<-EOSQL
 	CREATE DATABASE eqpls OWNER $DATABASE_USER;
+	CREATE DATABASE keycloak OWNER $DATABASE_USER;
 	COMMIT;
 EOSQL
 
 # Set Database Scheme & Data
+if [ -f /init.d/eqpls.sql ]; then
 psql -v ON_ERROR_STOP=1 --username postgres --dbname eqpls -f /init.d/eqpls.sql
+fi
+
+if [ -f /init.d/keycloak.sql ]; then
+psql -v ON_ERROR_STOP=1 --username postgres --dbname eqpls -f /init.d/keycloak.sql
+fi

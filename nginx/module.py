@@ -43,6 +43,8 @@ health_check_interval = int(config['default']['health_check_interval'])
 health_check_timeout = int(config['default']['health_check_timeout'])
 health_check_retries = int(config['default']['health_check_retries'])
 
+publish = os.path.abspath(config['service']['publish'])
+
 
 #===============================================================================
 # Container Control
@@ -53,28 +55,9 @@ def build(): client.images.build(nocache=True, rm=True, path=f'{path}', tag=f'{t
 
 # deploy
 def deploy(nowait=False):
-    try: os.mkdir(f'{path}/conf.d')
-    except: pass
-    try: os.mkdir(f'{path}/data.d')
-    except: pass
-    try: os.mkdir(f'{path}/back.d')
-    except: pass
-
     ports = {
         f'{port}/tcp': (host, int(port))
     } if export else {}
-
-    with open(f'{path}/conf.d/postgresql.conf', 'w') as fd:
-        fd.write(f"""
-listen_addresses = '*'
-timezone = 'Etc/UTC'
-log_timezone = 'Etc/UTC'
-datestyle = 'iso, mdy'
-default_text_search_config = 'pg_catalog.english'
-max_wal_size = 1GB
-min_wal_size = 80MB
-wal_level = 'logical'
-        """)
 
     container = client.containers.run(
         f'{tenant}/{title}:{version}',
@@ -85,18 +68,13 @@ wal_level = 'logical'
         mem_limit=memory,
         ports=ports,
         environment=[
-            f'DATABASE_USER={system_access_key}',
-            f'POSTGRES_PASSWORD={system_secret_key}',
-            f'PGDATA=/data.d',
         ],
         volumes=[
-            f'{path}/init.d:/init.d',
-            f'{path}/conf.d:/conf.d',
-            f'{path}/data.d:/var/lib/postgresql/data',
-            f'{path}/back.d:/back.d'
+            f'{path}/conf.d/nginx.conf:/etc/nginx/nginx.conf',
+            f'{publish}:/publish',
         ],
         healthcheck={
-            'test': 'pg_isready --username postgres || exit 1',
+            'test': 'curl -kv https://127.0.0.1 || exit 1',
             'interval': health_check_interval * 1000000000,
             'timeout': health_check_timeout * 1000000000,
             'retries': health_check_retries
@@ -139,8 +117,6 @@ def stop():
 # clean
 def clean():
     for container in client.containers.list(all=True, filters={'name': title}): container.remove(v=True, force=True)
-    shutil.rmtree(f'{path}/conf.d', ignore_errors=True)
-    shutil.rmtree(f'{path}/data.d', ignore_errors=True)
 
 
 # purge
@@ -150,8 +126,6 @@ def purge():
     except: pass
     try: client.images.remove(image=f'{tenant}/{title}:{version}', force=True)
     except: pass
-    shutil.rmtree(f'{path}/conf.d', ignore_errors=True)
-    shutil.rmtree(f'{path}/data.d', ignore_errors=True)
 
 
 # monitor
