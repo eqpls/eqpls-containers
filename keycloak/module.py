@@ -75,7 +75,7 @@ def deploy(nowait=False):
 
     ports = {
         f'{port}/tcp': (host, int(port)),
-        f'9000/tcp': (host, 9000) # Monitoring
+        f'9000/tcp': (host, 9000)  # Monitoring
     } if export else {}
 
     with open(f'{path}/conf.d/keycloak.conf', 'w') as fd:
