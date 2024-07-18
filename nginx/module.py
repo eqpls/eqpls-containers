@@ -43,6 +43,8 @@ health_check_interval = int(config['default']['health_check_interval'])
 health_check_timeout = int(config['default']['health_check_timeout'])
 health_check_retries = int(config['default']['health_check_retries'])
 
+container_links = config._sections['container:links']
+
 server_name = config['service']['server_name']
 
 
@@ -57,99 +59,95 @@ def build(): client.images.build(nocache=True, rm=True, path=f'{path}', tag=f'{t
 def deploy(nowait=False):
     try: os.mkdir(f'{path}/conf.d')
     except: pass
-    
+
     locations = ''
     upstreams = ''
-    
+
     if 'keycloak' in config and 'location' in config['keycloak'] and 'endpoint' in config['keycloak']:
         locations = \
 """
-location %s {
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Host $host;
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_set_header X-Forwarded-Server $host;
-proxy_pass http://keycloak/;
-}
+        location %s {
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_pass http://keycloak/;
+        }
 """ % config['keycloak']['location']
-        
+
         upstreams = \
 """
-upstream keycloak {
-server %s;
-}
+    upstream keycloak { server %s; }
 """ % config['keycloak']['endpoint']
 
     if 'backends' in config:
-        for location, endpoint in config['backends'].items():
+        for location, upstream in config['backends'].items():
             locations += \
 """
-location /%s/ {
-proxy_pass http://%s/%s/;
-}
+        location /%s/ {
+            proxy_pass http://%s/%s/;
+        }
 """ % (location, location, location)
             upstreams += \
 """
-upstream %s {
-server %s;
-}
-""" % (location, endpoint)
+    upstream %s { server %s; }
+""" % (location, upstream)
 
     locations += \
 """
-location %s {
-alias /publish/webroot/;
-}
+        location %s {
+            alias /publish/webroot/;
+        }
 """ % config['publish']['location']
-        
+
     publish_endpoint = os.path.abspath(config['publish']['endpoint'])
-    
+
     with open(f'{path}/conf.d/nginx.conf', 'w') as fd:
         fd.write(\
 """
 user root;
 worker_processes 1;
 events {
-worker_connections 1024;
-multi_accept on;
-use epoll;
+    worker_connections 1024;
+    multi_accept on;
+    use epoll;
 }
 http {
-include mime.types;
-default_type application/octet-stream;
-sendfile on;
-keepalive_timeout 65;
-client_max_body_size 0;
-large_client_header_buffers 4 128k;
-ssl_certificate_key /publish/webcert/server.key;
-ssl_certificate /publish/webcert/server.crt;
-ssl_session_timeout 10m;
-ssl_protocols SSLv2 SSLv3 TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
-ssl_ciphers HIGH:!aNULL:!MD5;
-ssl_prefer_server_ciphers on;
-# resolver 127.0.0.11 valid=2s;
-proxy_buffers 4 256k;
-proxy_buffer_size 128k;
-proxy_busy_buffers_size 256k;
-proxy_http_version 1.1;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header Upgrade $http_upgrade;
-proxy_set_header Connection $http_connection;
-server {
-listen 443 ssl;
-server_name %s;
+    include mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
+    client_max_body_size 0;
+    large_client_header_buffers 4 128k;
+    ssl_certificate_key /publish/webcert/server.key;
+    ssl_certificate /publish/webcert/server.crt;
+    ssl_session_timeout 10m;
+    ssl_protocols SSLv2 SSLv3 TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    resolver 127.0.0.11 valid=2s;
+    proxy_buffers 4 256k;
+    proxy_buffer_size 128k;
+    proxy_busy_buffers_size 256k;
+    proxy_http_version 1.1;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $http_connection;
+    server {
+        listen 443 ssl;
+        server_name %s;
 %s
-}
+    }
 %s
 }
 """ % (server_name, locations, upstreams))
-    
+
     ports = {
         f'{port}/tcp': (host, int(port))
     } if export else {}
-    
+
     container = client.containers.run(
         f'{tenant}/{title}:{version}',
         detach=True,
@@ -157,6 +155,7 @@ server_name %s;
         hostname=hostname,
         network=tenant,
         mem_limit=memory,
+        links=container_links,
         ports=ports,
         environment=[
         ],

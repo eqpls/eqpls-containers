@@ -43,6 +43,8 @@ health_check_interval = int(config['default']['health_check_interval'])
 health_check_timeout = int(config['default']['health_check_timeout'])
 health_check_retries = int(config['default']['health_check_retries'])
 
+container_links = config._sections['container:links']
+
 
 #===============================================================================
 # Container Control
@@ -71,17 +73,24 @@ def deploy(nowait=False):
         hostname=hostname,
         network=tenant,
         mem_limit=memory,
+        links=container_links,
         ports=ports,
         environment=[
         ],
         volumes=[
+            f'{path}/conf.d:/conf.d',
             f'{path}/data.d:/data',
+            f'{path}/back.d:/back.d',
         ],
         healthcheck={
             'test': 'redis-cli --raw incr ping || exit 1',
             'interval': health_check_interval * 1000000000,
             'timeout': health_check_timeout * 1000000000,
             'retries': health_check_retries
+        },
+        restart_policy={
+            'Name': 'on-failure',
+            'MaximumRetryCount': 5
         }
     )
 

@@ -43,6 +43,8 @@ health_check_interval = int(config['default']['health_check_interval'])
 health_check_timeout = int(config['default']['health_check_timeout'])
 health_check_retries = int(config['default']['health_check_retries'])
 
+container_links = config._sections['container:links']
+
 
 #===============================================================================
 # Container Control
@@ -83,6 +85,7 @@ wal_level = 'logical'
         hostname=hostname,
         network=tenant,
         mem_limit=memory,
+        links=container_links,
         ports=ports,
         environment=[
             f'DATABASE_USER={system_access_key}',
@@ -100,6 +103,10 @@ wal_level = 'logical'
             'interval': health_check_interval * 1000000000,
             'timeout': health_check_timeout * 1000000000,
             'retries': health_check_retries
+        },
+        restart_policy={
+            'Name': 'on-failure',
+            'MaximumRetryCount': 5
         }
     )
 

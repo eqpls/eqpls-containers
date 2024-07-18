@@ -43,12 +43,10 @@ health_check_interval = int(config['default']['health_check_interval'])
 health_check_timeout = int(config['default']['health_check_timeout'])
 health_check_retries = int(config['default']['health_check_retries'])
 
-keycloak_domain = config['keycloak']['domain']
-keycloak_realm = config['keycloak']['realm']
-keycloak_master_username = config['keycloak']['master_username']
-keycloak_master_password = config['keycloak']['master_password']
-keycloak_admin_username = config['keycloak']['admin_username']
-keycloak_admin_password = config['keycloak']['admin_password']
+container_links = config._sections['container:links']
+
+keycloak_frontend = config['keycloak']['frontend']
+keycloak_proxyurl = config['keycloak']['proxyurl']
 
 database_hostname = config['driver:postgresql']['hostname']
 database_hostport = config['driver:postgresql']['hostport']
@@ -85,8 +83,8 @@ db-username={database_username}
 db-password={database_password}
 db-url=jdbc:postgresql://{database_hostname}/{database_database}
 http-enabled=true
-hostname=https://{keycloak_domain}/auth
-hostname-admin=https://{keycloak_domain}/auth
+hostname={keycloak_frontend}{keycloak_proxyurl}
+hostname-admin={keycloak_frontend}{keycloak_proxyurl}
 hostname-strict=false
 hostname-backchannel-dynamic=true
 proxy-headers=xforwarded
@@ -99,23 +97,27 @@ proxy-headers=xforwarded
         hostname=hostname,
         network=tenant,
         mem_limit=memory,
+        links=container_links,
         ports=ports,
         environment=[
-            f'KEYCLOAK_ADMIN={keycloak_master_username}',
-            f'KEYCLOAK_ADMIN_PASSWORD={keycloak_master_password}',
+            f'KEYCLOAK_ADMIN={system_access_key}',
+            f'KEYCLOAK_ADMIN_PASSWORD={system_secret_key}',
             f'KC_HEALTH_ENABLED=true',
         ],
         volumes=[
-            f'{path}/init.d:/init.d',
             f'{path}/conf.d/keycloak.conf:/opt/keycloak/conf/keycloak.conf',
             f'{path}/data.d:/data.d',
             f'{path}/back.d:/back.d',
         ],
         healthcheck={
-            'test': 'exec 3<>/dev/tcp/127.0.0.1/8080;echo -e \"GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n\" >&3; grep \"HTTP/1.1 200 OK\" <&3"',
+            'test': 'echo "OK" || exit 1',
             'interval': health_check_interval * 1000000000,
             'timeout': health_check_timeout * 1000000000,
             'retries': health_check_retries
+        },
+        restart_policy={
+            'Name': 'on-failure',
+            'MaximumRetryCount': 5
         }
     )
 
@@ -128,7 +130,6 @@ proxy-headers=xforwarded
             exit(1)
         if 'Health' in container.attrs['State'] and container.attrs['State']['Health']['Status'] == 'healthy':
             print('container is healthy')
-            container.exec_run(f'/init.d/init.sh "{keycloak_domain}" "{keycloak_realm}" "{keycloak_master_username}" "{keycloak_master_password}" "{keycloak_admin_username}" "{keycloak_admin_password}"')
             break
 
 
